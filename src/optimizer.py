@@ -1,12 +1,6 @@
-from acquisitions.fully_bayes import FullyBayes
-from acquisitions.random_search import RandomSearch
 from src.dataset import Dataset
 from src.parameters import *
-from surrogates.deep_ensemble import DeepEnsemble
-from surrogates.dummy_surrogate import DummySurrogate
 from surrogates.gaussian_process import GaussianProcess
-from surrogates.random_forest import RandomForest
-from surrogates.bayesian_neural_network import BayesianNeuralNetwork
 from botorch.generation.sampling import MaxPosteriorSampling
 from botorch.optim import optimize_acqf
 from acquisitions.botorch_acqs import (
@@ -14,7 +8,6 @@ from acquisitions.botorch_acqs import (
     UpperConfidenceBound,
 )
 from src.recalibrator import Recalibrator
-from acquisitions.min_posterior_sampling import MinPosteriorSampling
 import warnings
 
 
@@ -30,18 +23,6 @@ class Optimizer(object):
         if self.surrogate == "GP":
             self.surrogate_object = GaussianProcess(self.parameters, dataset)
             self.surrogate_model = self.surrogate_object.model
-        elif self.surrogate == "RF":
-            self.surrogate_object = RandomForest(self.parameters, dataset)
-            self.surrogate_model = self.surrogate_object
-        elif self.surrogate == "BNN":
-            self.surrogate_object = BayesianNeuralNetwork(self.parameters, dataset)
-            self.surrogate_model = self.surrogate_object
-        elif self.surrogate == "DE":
-            self.surrogate_object = DeepEnsemble(self.parameters, dataset)
-            self.surrogate_model = self.surrogate_object
-        elif self.surrogate == "DS":
-            self.surrogate_object = DummySurrogate(self.parameters, dataset)
-            self.surrogate_model = self.surrogate_object
         elif self.surrogate == "RS":
             self.surrogate_object = None
             self.surrogate_model = None
@@ -71,19 +52,8 @@ class Optimizer(object):
                 std_change=self.std_change,
                 recalibrator=recalibrator,
             )
-        elif self.acquisition == "RS":
-            self.acquisition_function = RandomSearch()
-        elif self.acquisition == "TS":
-            self.acquisition_function = MinPosteriorSampling(model=self.surrogate_model, replacement=True, surrogate_type=self.parameters.surrogate)
         else:
             raise ValueError(f"Acquisition function {self.acquisition} not supported.")
-
-        if self.fully_bayes:
-            self.acquisition_function = FullyBayes(
-                self.surrogate_model,
-                self.acquisition_function,
-                y_opt_tensor=y_opt_tensor,
-            )
 
     def bo_iter(
         self,

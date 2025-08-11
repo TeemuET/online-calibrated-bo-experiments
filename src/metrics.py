@@ -1,13 +1,15 @@
 from dataclasses import asdict
 import json
 from netrc import netrc
-from numpy.lib.npyio import save
-from scipy.sparse import data
+import numpy as np
+import torch
+from numpy import save
+from uncertainty_toolbox.metrics import *
+from src.recalibrator import Recalibrator
 from imports.general import *
 from imports.ml import *
 from src.parameters import Parameters
 from src.dataset import Dataset
-from src.recalibrator import Recalibrator
 
 
 class Metrics(object):
@@ -293,9 +295,9 @@ class Metrics(object):
                 for i in range(sigmas.shape[0])
             ]
         )
-        print(np.min(log_pdfs))
-        print(mus[np.argmin(log_pdfs)])
-        print(sigmas[np.argmin(log_pdfs)])
+        #print(np.min(log_pdfs))
+        #print(mus[np.argmin(log_pdfs)])
+        #print(sigmas[np.argmin(log_pdfs)])
         elpd = np.mean(log_pdfs)
         self.update_summary({"elpd": elpd})
 

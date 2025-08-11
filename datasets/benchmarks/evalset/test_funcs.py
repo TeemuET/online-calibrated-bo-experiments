@@ -374,6 +374,19 @@ class Noisifier(TestFunction):
             self.__class__.__name__, self.func, self.type, self.level,
         )
 
+class Forrester(TestFunction):
+    def __init__(self, dim=1):
+        assert dim == 1
+        super(Forrester, self).__init__(dim)
+        self.bounds = [(0, 1)]
+        self.min_loc = 0.757248760057
+        self.fmin = -6.0207
+        self.fmax = 10.0 
+        self.classifiers = ["multimodal"]
+
+    def do_evaluate(self, x):
+        x = x[0]
+        return (6 * x - 2) ** 2 * sin(12 * x - 4)   
 
 class Ackley(TestFunction):
     def __init__(self, dim=2):

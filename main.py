@@ -1,14 +1,9 @@
 from src.parameters import Parameters
 from src.dataset import Dataset
 from src.experiment import Experiment
-from surrogates.bayesian_neural_network import BayesianNeuralNetwork
 from surrogates.gaussian_process import GaussianProcess
-from surrogates.random_forest import RandomForest
-from surrogates.dummy_surrogate import DummySurrogate
-from surrogates.deep_ensemble import DeepEnsemble
 import torch
 import numpy as np
-from src.MNIST_utility import *
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from botorch.acquisition.analytic import ExpectedImprovement
@@ -19,12 +14,6 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import json
 from sklearn.preprocessing import StandardScaler
 import itertools
-from theory_experiments.FashionMNIST import *
-from theory_experiments.MNIST import *
-from theory_experiments.FashionMNIST_CNN import *
-from theory_experiments.MNIST_CNN import *
-from theory_experiments.NewsClassification import *
-from theory_experiments.SVM_wine import *
 from datetime import datetime
 import time
 import sys

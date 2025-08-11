@@ -1,18 +1,8 @@
 from argparse import ArgumentError
 from typing import Dict
-from datasets.MNIST.mnist import MNIST
-from datasets.FashionMNIST.fashion_mnist import FashionMNIST
-from datasets.FashionMNIST_CNN.fashion_mnist_CNN import FashionMNIST_CNN
-from datasets.MNIST_CNN.mnist_CNN import MNIST_CNN
-from datasets.News.News import News
-from datasets.SVM.SVM_wine import SVM_Wine
-from datasets.RBF.rbf_sampler import RBFSampler
 from src.parameters import *
 from imports.general import *
-from datasets.verifications.verification import VerificationData
 from datasets.benchmarks.benchmark import Benchmark
-from datasets.custom.custom import CustomData
-
 
 class Dataset(object):
     def __init__(self, parameters: Parameters) -> None:
@@ -21,18 +11,6 @@ class Dataset(object):
 #            self.data = RBFSampler(parameters)
         if parameters.data_name.lower() == "benchmark":
             self.data = Benchmark(parameters)
-        elif parameters.data_name.lower() == "mnist":
-            self.data = MNIST(parameters)
-        elif parameters.data_name.lower() == "fashionmnist":
-            self.data = FashionMNIST(parameters)
-        elif parameters.data_name.lower() == "fashionmnist_cnn":
-            self.data = FashionMNIST_CNN(parameters)
-        elif parameters.data_name.lower() == "mnist_cnn":
-            self.data = MNIST_CNN(parameters)
-        elif parameters.data_name.lower() == "news":
-            self.data = News(parameters)
-        elif parameters.data_name.lower() == "svm_wine":
-            self.data = SVM_Wine(parameters)
         else:
             raise ArgumentError(f"{parameters.problem} problem in parameters not found")
 

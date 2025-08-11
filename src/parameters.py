@@ -14,9 +14,9 @@ class Parameters:
     seed: bool = 0  # random seed
     d: int = 1  # number of input dimensions
     n_test: int = 5000  # number of test samples for calibration analysis
-    n_initial: int = 10  # number of starting points
+    n_initial: int = 5  # number of starting points
     n_validation: int = 100  # number of iid samples for recalibration
-    n_evals: int = 100  # number of BO iterations
+    n_evals: int = 5  # number of BO iterations
     n_pool : int = 5000
     rf_cv_splits: int = 2  # number of CV splits for random forest hyperparamtuning
     vanilla: bool = False  # simplest implementation (used for test)

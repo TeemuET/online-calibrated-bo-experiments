@@ -16,6 +16,7 @@ class Experiment(object):
         self.dataset = Dataset(parameters)
         self.optimizer = Optimizer(parameters)
         self.metrics = Metrics(parameters)
+        
 
     def __str__(self):
         return (
@@ -27,10 +28,37 @@ class Experiment(object):
             + self.metrics.__str__
         )
 
+
+    def _track_surrogate_state(self, epoch: Union[int, str], surrogate: object) -> None:
+        """Prints the current state of the surrogate model for tracking."""
+        header = f"--- Epoch {epoch+1}/{self.n_evals} ---" if isinstance(epoch, int) else f"--- {epoch} State ---"
+        print(f"\n{header}")
+        print(f"Surrogate type: {type(surrogate).__name__}")
+
+        # For Gaussian Process, print hyperparameters
+        if hasattr(surrogate, "model") and hasattr(surrogate.model, "covar_module"):
+            try:
+                lengthscale = surrogate.model.covar_module.base_kernel.lengthscale.item()
+                outputscale = surrogate.model.covar_module.outputscale.item()
+                noise = surrogate.model.likelihood.noise.item()
+                print(f"  GP Lengthscale: {lengthscale:.4f}")
+                print(f"  GP Outputscale: {outputscale:.4f}")
+                print(f"  GP Likelihood Noise: {noise:.4f}")
+            except AttributeError:
+                print("  Could not retrieve all GP hyperparameters.")
+        
+        # For Bayesian Neural Network
+        elif "BNN" in type(surrogate).__name__:
+            num_params = sum(p.numel() for p in surrogate.model.parameters() if p.requires_grad)
+            print(f"  BNN has {num_params} trainable parameters.")
+
+        print("--------------------------")
+
     def run(self) -> None:
 
         # Epoch 0
         self.optimizer.fit_surrogate(self.dataset)
+        self._track_surrogate_state("Initial", self.optimizer.surrogate_object)
         recalibrator = (
             Recalibrator(
                 self.dataset, self.optimizer.surrogate_object, mode=self.recal_mode,
@@ -38,6 +66,7 @@ class Experiment(object):
             if self.recalibrate
             else None
         )
+        self._track_surrogate_state("Post-recalibration", self.optimizer.surrogate_object)
         self.metrics.analyze(
             self.optimizer.surrogate_object,
             self.dataset,
@@ -57,6 +86,7 @@ class Experiment(object):
                     if self.recalibrate
                     else None
                 )
+                self._track_surrogate_state(("Post recalibration", e), self.optimizer.surrogate_object)
                 # BO iteration
                 x_next, acq_val, i_choice = self.optimizer.bo_iter(
                     self.dataset,
@@ -64,6 +94,7 @@ class Experiment(object):
                     recalibrator=recalibrator,
                     return_idx=True,
                 )
+
                 y_next = self.dataset.data.y_pool[[i_choice]]
                 f_next = (
                     self.dataset.data.f_pool[[i_choice]]
@@ -79,7 +110,8 @@ class Experiment(object):
 
                 # Update surrogate
                 self.optimizer.fit_surrogate(self.dataset)
-
+                
+                self._track_surrogate_state(("After fitting on the new x_next", e), self.optimizer.surrogate_object)
                 if self.analyze_all_epochs:
                     self.metrics.analyze(
                         self.optimizer.surrogate_object,

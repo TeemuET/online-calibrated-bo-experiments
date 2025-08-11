@@ -16,14 +16,16 @@ from copy import deepcopy
 from typing import Dict, Optional, Tuple, Union
 
 import torch
+from botorch.acquisition import ScalarizedPosteriorTransform
 from botorch.acquisition.acquisition import AcquisitionFunction
-from botorch.acquisition.objective import ScalarizedObjective
-from botorch.exceptions import UnsupportedError
-from botorch.models.gp_regression import FixedNoiseGP
-from botorch.models.gpytorch import GPyTorchModel
+from botorch.utils.transforms import t_batch_mode_transform
+from botorch.acquisition.max_value_entropy_search import (
+    qMaxValueEntropy,
+    qMultiFidelityMaxValueEntropy,
+)
+from botorch.acquisition.utils import get_acquisition_function
 from botorch.models.model import Model
-from botorch.posteriors.posterior import Posterior
-from botorch.utils.transforms import convert_to_target_pre_hook, t_batch_mode_transform
+from botorch.utils.transforms import standardize
 from torch import Tensor
 from torch.distributions import Normal
 
@@ -34,7 +36,7 @@ class AnalyticAcquisitionFunction(AcquisitionFunction, ABC):
     r"""Base class for analytic acquisition functions."""
 
     def __init__(
-        self, model: Model, objective: Optional[ScalarizedObjective] = None
+        self, model: Model, objective: Optional[ScalarizedPosteriorTransform] = None
     ) -> None:
         r"""Base constructor for analytic acquisition functions.
 
@@ -48,7 +50,7 @@ class AnalyticAcquisitionFunction(AcquisitionFunction, ABC):
                 raise UnsupportedError(
                     "Must specify an objective when using a multi-output model."
                 )
-        elif not isinstance(objective, ScalarizedObjective):
+        elif not isinstance(objective, ScalarizedPosteriorTransform):
             raise UnsupportedError(
                 "Only objectives of type ScalarizedObjective are supported for "
                 "analytic acquisition functions."
@@ -103,7 +105,7 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
         self,
         model: Model,
         best_f: Union[float, Tensor],
-        objective: Optional[ScalarizedObjective] = None,
+        objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
         std_change: float = 1.0,
         recalibrator: Recalibrator = None,
@@ -175,7 +177,7 @@ class PosteriorMean(AnalyticAcquisitionFunction):
     def __init__(
         self,
         model: Model,
-        objective: Optional[ScalarizedObjective] = None,
+        objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
     ) -> None:
         r"""Single-outcome Posterior Mean.
@@ -232,7 +234,7 @@ class ProbabilityOfImprovement(AnalyticAcquisitionFunction):
         self,
         model: Model,
         best_f: Union[float, Tensor],
-        objective: Optional[ScalarizedObjective] = None,
+        objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
     ) -> None:
         r"""Single-outcome analytic Probability of Improvement.
@@ -296,7 +298,7 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         self,
         model: Model,
         beta: Union[float, Tensor],
-        objective: Optional[ScalarizedObjective] = None,
+        objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
         std_change: float = 1.0,
         recalibrator: Recalibrator = None,
@@ -647,7 +649,7 @@ class ScalarizedPosteriorMean(AnalyticAcquisitionFunction):
         self,
         model: Model,
         weights: Tensor,
-        objective: Optional[ScalarizedObjective] = None,
+        objective: Optional[ScalarizedPosteriorTransform] = None,
     ) -> None:
         r"""Scalarized Posterior Mean.
 

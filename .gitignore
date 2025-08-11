@@ -6,7 +6,6 @@ cluster
 **/*.pdf
 **/*.zip
 **/*.db
-**/*.sh
 **/.DS_Store
 **/__pycache__
 CodeChart.drawio

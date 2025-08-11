@@ -36,7 +36,7 @@ class Parameters:
     problem_idx: int = 0
     prob_acq: bool = False  # if acqusition function should sample like a prob dist. If False, argmax is used.
     std_change: float = 1.0  # how to manipulate predictive std
-    snr: float = 100.0
+    snr: float = 1000.0
     sigma_data: float = None  # follows from problem
     sigma_noise: float = None  # computed as function of SNR and sigma_data
     n_calibration_bins: int = 20
@@ -116,9 +116,15 @@ class Parameters:
             self.save()
 
     def find_benchmark_problem_i(self) -> str:
-        with open(f"datasets/benchmarks/unibo-problems.json") as json_file:
-            problems = json.load(json_file)
-        return problems[str(self.d)][self.problem_idx]
+        with open("datasets/benchmarks/unibo-problems-flat.json") as f:
+            problems = json.load(f)
+
+        if self.problem_idx >= len(problems):
+            raise IndexError(f"problem_idx {self.problem_idx} is out of range for {len(problems)} problems.")
+
+        problem_config = problems[self.problem_idx]
+        self.d = problem_config["dim"]  # Set the dimension from the file
+        return problem_config["name"]   # Return the problem name
 
     def save(self) -> None:
         json_dump = json.dumps(asdict(self))

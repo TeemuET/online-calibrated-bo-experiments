@@ -91,21 +91,28 @@ class Parameters:
             kwargs['savepth'] = kwargs['savepth'].replace(".", "/work3/mikkjo/unibo_results/std_change")
         self.update(kwargs)
 
-        if mkdir and not os.path.isdir(self.savepth):
-            os.mkdir(self.savepth)
+        # New path creation logic
+        base_save_path = self.savepth
+
         if self.test:
-            folder_name = f"test{self.experiment}"
+            # For tests, keep it simple in one folder
+            folder_name = f"test-{self.experiment}-p{self.problem_idx}-s{self.seed}"
+            full_path = os.path.join(base_save_path, folder_name)
         else:
-            folder_name = (
-                f"{self.experiment}--{datetime.now().strftime('%d%m%y-%H%M%S')}"
-                + "--"
-                + f"seed-{self.seed}"
-                + "--"
-                + "".join(random.choice(string.ascii_lowercase) for x in range(6))
+            # For full runs, create a structured, hierarchical path
+            # e.g., ./results_synth_data/GP-EI-BENCHMARKS/problem_15/seed_3/
+            full_path = os.path.join(
+                base_save_path,
+                self.experiment,
+                f"problem_{self.problem_idx}",
+                f"seed_{self.seed}",
             )
-        setattr(self, "savepth", f"{self.savepth}{folder_name}/")
-        if mkdir and not os.path.isdir(self.savepth):
-            os.mkdir(self.savepth)
+
+        # Set the final save path, ensuring it ends with a separator
+        setattr(self, "savepth", os.path.join(full_path, ""))
+        
+        if mkdir:
+            os.makedirs(self.savepth, exist_ok=True)
             self.save()
 
     def update(self, kwargs, save=False) -> None:

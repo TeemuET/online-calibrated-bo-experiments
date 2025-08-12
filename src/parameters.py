@@ -24,6 +24,8 @@ class Parameters:
     save_it: bool = True  # whether to save progress
     bo: bool = False  # performing bo to sample X or merely randomly sample X
     noisify: bool = True
+    fix_surrogate_logic = True # bug fix for the logic of the surrogate model in experiments.yp
+    track_surrogate_state: bool = False  # whether to track surrogate state
     test: bool = True
     beta: float = 1.0 #beta value if acquisition function is UCB. Experimenting with different values seem to indicate that beta = 1 is best, but this is probably largely dependant on optim. problem. 
     recalibrate: bool = False

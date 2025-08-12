@@ -16,7 +16,7 @@ class Experiment(object):
         self.dataset = Dataset(parameters)
         self.optimizer = Optimizer(parameters)
         self.metrics = Metrics(parameters)
-        
+        self.parameters = parameters
 
     def __str__(self):
         return (
@@ -31,6 +31,8 @@ class Experiment(object):
 
     def _track_surrogate_state(self, epoch: Union[int, str], surrogate: object) -> None:
         """Prints the current state of the surrogate model for tracking."""
+        if not self.parameters.track_surrogate_state:
+            return
         header = f"--- Epoch {epoch+1}/{self.n_evals} ---" if isinstance(epoch, int) else f"--- {epoch} State ---"
         print(f"\n{header}")
         print(f"Surrogate type: {type(surrogate).__name__}")
@@ -86,7 +88,12 @@ class Experiment(object):
                     if self.recalibrate
                     else None
                 )
+                    
                 self._track_surrogate_state(("Post recalibration", e), self.optimizer.surrogate_object)
+                if self.parameters.fix_surrogate_logic:
+                    self.optimizer.fit_surrogate(self.dataset)
+                    
+                self._track_surrogate_state(("Before BO iteration", e), self.optimizer.surrogate_object)
                 # BO iteration
                 x_next, acq_val, i_choice = self.optimizer.bo_iter(
                     self.dataset,

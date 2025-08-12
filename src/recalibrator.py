@@ -12,6 +12,7 @@ class Recalibrator(object):
         self.mode = mode
         mus, sigmas, ys_true = self.make_recal_dataset(dataset, model)
         self.recalibrator_model = self.train_recalibrator_model(mus, sigmas, ys_true)
+        #model.fit(dataset.data.X_train, dataset.data.y_train)
 
     def make_recal_dataset(self, dataset: Dataset, model):
         if self.mode == "cv":
@@ -32,7 +33,7 @@ class Recalibrator(object):
             model.fit(dataset.data.X_train, dataset.data.y_train)
             mus_val, sigs_val = model.predict(X_val)
             return mus_val, sigs_val, y_val
-
+        
     def train_recalibrator_model(self, mu_test, sig_test, y_val):
         CDF = norm.cdf(y_val.squeeze(), mu_test.squeeze(), sig_test.squeeze()).squeeze()
         P = np.vectorize(lambda p: np.mean(CDF < p))

@@ -25,9 +25,10 @@ echo "Running with Problem Index: $PROBLEM_IDX, Seed: $SEED"
 
 # --- Experiment Execution ---
 # We no longer need to pass 'd'. The python script figures it out.
-ARGS="problem_idx=${PROBLEM_IDX}|seed=${SEED}|data_name=benchmark|experiment=GP-EI-BENCHMARKS-PROBLEM-${PROBLEM_IDX}-SEED-${SEED}"
-ARGS+="|n_initial=5|n_evals=10|n_seeds_per_job=1|n_test=5000|n_pool=5000"
+ARGS="problem_idx=${PROBLEM_IDX}|seed=${SEED}|data_name=benchmark|experiment=GP-EI-BENCHMARKS-notFixed"
+ARGS+="|n_initial=10|n_evals=90|n_seeds_per_job=20|n_test=5000|n_pool=5000"
 ARGS+="|surrogate=GP|acquisition=EI|bo=True|extensive_metrics=True|recalibrate=True|test=False"
+ARGS+="|noisify=True|snr=100.0|fix_surrogate_logic=False"
 
 # Run the experiment     
 python3 main.py "$ARGS"

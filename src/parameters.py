@@ -34,6 +34,7 @@ class Parameters:
     maximization: bool = False
     fully_bayes: bool = False  # if fully bayes in BO rutine (marginalize hyperparams)
     xi: float = 0.0  # exploration parameter for BO
+    device: str = "cpu"  # Add this line to control device (cpu or cuda)
     problem: str = ""  # e.g. "Alpine01" # subproblem name, overwrites problem_idx
     problem_idx: int = 0
     prob_acq: bool = False  # if acqusition function should sample like a prob dist. If False, argmax is used.

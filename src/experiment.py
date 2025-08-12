@@ -77,7 +77,7 @@ class Experiment(object):
         )
         if self.bo:
             # Epochs > 0
-            for e in tqdm(range(self.n_evals), leave=False):
+            for e in tqdm(range(self.n_evals), desc="BO Iterations"):
 
                 recalibrator = (
                     Recalibrator(

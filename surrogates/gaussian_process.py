@@ -28,6 +28,7 @@ class GaussianProcess(object):
         self.name = name
         self.seed = parameters.seed
         self.d = parameters.d
+        self.device = torch.device(parameters.device)
         self.std_change = parameters.std_change
         self.opt_hyp_pars = opt_hyp_pars
         if dataset.data.real_world:
@@ -40,16 +41,18 @@ class GaussianProcess(object):
                 RBFKernel(lengthscale_prior=LogNormalPrior(0.1, 1)),
                 outputscale_prior=NormalPrior(1.0, 2.0),
             )
+        self.kernel = self.kernel.to(self.device)
         self.fit(X_train=dataset.data.X_train, y_train=dataset.data.y_train)
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray):
         torch.manual_seed(self.seed)
         self.model = botorch.models.SingleTaskGP(
-            torch.tensor(X_train).double(),
-            torch.tensor(y_train).double(),
+            torch.tensor(X_train).double().to(self.device),
+            torch.tensor(y_train).double().to(self.device),
             covar_module=self.kernel,
         )
         self.likelihood = ExactMarginalLogLikelihood(self.model.likelihood, self.model)
+        self.model.to(self.device)
         if self.opt_hyp_pars:
             botorch.fit.fit_gpytorch_mll(self.likelihood)
         # surrogate_model.model.covar_module.base_kernel.lengthscale.detach().numpy().squeeze()
@@ -62,7 +65,7 @@ class GaussianProcess(object):
         """Calculates mean (prediction) and variance (uncertainty)"""
         X_test_torch = (
             torch.from_numpy(X_test) if isinstance(X_test, np.ndarray) else X_test
-        )
+        ).to(self.device)
         posterior = self.model.posterior(
             X_test_torch.double(), observation_noise=observation_noise
         )

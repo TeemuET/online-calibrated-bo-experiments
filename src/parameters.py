@@ -3,6 +3,7 @@ import string
 from imports.general import *
 from imports.ml import *
 from dataclasses import dataclass, asdict
+import warnings
 
 
 @dataclass
@@ -140,3 +141,9 @@ class Parameters:
         json_dump = json.dumps(asdict(self))
         with open(self.savepth + "parameters.json", "w") as f:
             f.write(json_dump)
+
+    def __post_init__(self):
+        if self.device == "cuda" and not torch.cuda.is_available():
+            warnings.warn("CUDA device requested but not available. Falling back to CPU.")
+            self.device = "cpu"
+            

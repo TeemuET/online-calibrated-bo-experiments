@@ -18,6 +18,7 @@ from datetime import datetime
 import time
 import sys
 import warnings
+from tqdm import tqdm
 
 #python3 -c "from main import *; run()" $args
 #"seed=0|n_seeds_per_job=1|surrogate=GP|acquisition=EI|data_name=mnist|std_change=1.0|bo=True|experiment=experiment-GP--0|test=False|extensive_metrics=True|recalibrate=False"
@@ -56,6 +57,7 @@ def run():
     for i in range(kwargs['n_seeds_per_job']):
         parameters = Parameters(kwargs, mkdir=True)
         print("Running with:", parameters)
+        print(f"Using device: {parameters.device}")
         experiment = Experiment(parameters)
         experiment.run()
         print("FINISHED EXPERIMENT")

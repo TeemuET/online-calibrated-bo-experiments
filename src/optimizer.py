@@ -18,7 +18,7 @@ class Optimizer(object):
         self.__dict__.update(asdict(parameters))
         self.parameters = parameters
         self.is_fitted = False
-
+        
     def fit_surrogate(self, dataset: Dataset) -> None:
         if self.surrogate == "GP":
             self.surrogate_object = GaussianProcess(self.parameters, dataset)
@@ -63,7 +63,8 @@ class Optimizer(object):
         return_idx: bool = False,
     ) -> Dict[np.ndarray, np.ndarray]:
         assert self.is_fitted
-
+        
+        device = torch.device(self.parameters.device)
         self.construct_acquisition_function(dataset, recalibrator)
 
         #Why do we sample X_test again here???
@@ -84,7 +85,7 @@ class Optimizer(object):
             X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 0))
 
             x_optim = self.acquisition_function(X_pool_torch)
-            i_choice = np.random.choice(np.nonzero((x_optim.squeeze(0).detach().numpy()==X_pool_entire).all(axis=1))[0])
+            i_choice = np.random.choice(np.nonzero((x_optim.squeeze(0).cpu().detach().numpy()==X_pool_entire).all(axis=1))[0])
 
             if return_idx:
                 return(
@@ -98,10 +99,10 @@ class Optimizer(object):
                     "N/A",
                 )
         else:
-            X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 1))
+            X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 1)).to(device)
 
             acquisition_values = (
-                self.acquisition_function(X_pool_torch.float()).detach().numpy()
+                self.acquisition_function(X_pool_torch.float()).cpu().detach().numpy()
             )
             # find idx
             if self.parameters.prob_acq:

@@ -53,6 +53,7 @@ class GaussianProcess(object):
         )
         self.likelihood = ExactMarginalLogLikelihood(self.model.likelihood, self.model)
         self.model.to(self.device)
+        self.likelihood.to(self.device)
         if self.opt_hyp_pars:
             botorch.fit.fit_gpytorch_mll(self.likelihood)
         # surrogate_model.model.covar_module.base_kernel.lengthscale.detach().numpy().squeeze()

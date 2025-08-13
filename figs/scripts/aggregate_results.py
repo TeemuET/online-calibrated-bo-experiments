@@ -15,7 +15,7 @@ def aggregate_results(base_path):
 
     # Use os.walk to find all parameter files
     for root, dirs, files in tqdm(os.walk(base_path), desc="Scanning Folders"):
-        if "metrics.json" in files and "parameters.json" in files:
+        if "metrics.json" in files and "parameters.json" in files and "dataset.json" in files:
             try:
                 # Load parameters for this run
                 with open(os.path.join(root, "parameters.json")) as f:
@@ -24,6 +24,12 @@ def aggregate_results(base_path):
                 # Load all metrics for this run
                 with open(os.path.join(root, "metrics.json")) as f:
                     metrics = json.load(f)
+
+                # Load dataset summary to get the scaling factor
+                with open(os.path.join(root, "dataset.json")) as f:
+                    dataset_summary = json.load(f)
+                
+                y_std = dataset_summary.get("y_std", 1.0) # Default to 1.0 if not found
 
                 # --- Create a single summary row for the entire run ---
                 
@@ -39,14 +45,17 @@ def aggregate_results(base_path):
                     "surrogate": params.get("surrogate"),
                     "acquisition": params.get("acquisition"),
                     "recalibrate": params.get("recalibrate"),
+                    "y_std_original": y_std, # Save the scaling factor
                     
                     # --- Final Summary Metrics ---
                     
-                    # 1. Best simple regret: how close did we get to the optimum? (Lower is better)
+                    # 1. Best simple regret (standardized and rescaled)
                     "best_simple_regret": min(regret_history),
+                    "best_simple_regret_rescaled": min(regret_history) * y_std,
                     
-                    # 2. Cumulative regret: what was the total cost of exploration? (Sum of instantaneous regrets)
+                    # 2. Cumulative regret (standardized and rescaled)
                     "final_cumulative_regret": sum(regret_history),
+                    "final_cumulative_regret_rescaled": sum(regret_history) * y_std,
                     
                     # 3. Final values for other key metrics
                     "final_calibration_mse": metrics.get("y_calibration_mse", [None])[-1],

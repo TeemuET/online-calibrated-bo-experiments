@@ -33,9 +33,8 @@ def aggregate_results(base_path):
 
                 # --- Create a single summary row for the entire run ---
                 
-                regret_history = metrics.get("y_regret_test", [])
-                if not regret_history:
-                    continue # Skip if there's no regret data
+                regret_history_test = metrics.get("y_regret_test", [])
+                regret_history_pool = metrics.get("y_regret_pool", [])
 
                 result_row = {
                     # Key parameters from params.json
@@ -49,13 +48,17 @@ def aggregate_results(base_path):
                     
                     # --- Final Summary Metrics ---
                     
-                    # 1. Best simple regret (standardized and rescaled)
-                    "best_simple_regret": min(regret_history),
-                    "best_simple_regret_rescaled": min(regret_history) * y_std,
-                    
-                    # 2. Cumulative regret (standardized and rescaled)
-                    "final_cumulative_regret": sum(regret_history),
-                    "final_cumulative_regret_rescaled": sum(regret_history) * y_std,
+                    # 1. Test Set Regret: Best simple and final cumulative
+                    "best_simple_regret_test": min(regret_history_test) if regret_history_test else None,
+                    "best_simple_regret_test_rescaled": min(regret_history_test) * y_std if regret_history_test else None,
+                    "final_cumulative_regret_test": sum(regret_history_test) if regret_history_test else None,
+                    "final_cumulative_regret_test_rescaled": sum(regret_history_test) * y_std if regret_history_test else None,
+
+                    # 2. Pool Regret: Best simple and final cumulative
+                    "best_simple_regret_pool": min(regret_history_pool) if regret_history_pool else None,
+                    "best_simple_regret_pool_rescaled": min(regret_history_pool) * y_std if regret_history_pool else None,
+                    "final_cumulative_regret_pool": sum(regret_history_pool) if regret_history_pool else None,
+                    "final_cumulative_regret_pool_rescaled": sum(regret_history_pool) * y_std if regret_history_pool else None,
                     
                     # 3. Final values for other key metrics
                     "final_calibration_mse": metrics.get("y_calibration_mse", [None])[-1],

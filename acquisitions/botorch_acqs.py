@@ -151,7 +151,7 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
             posterior.variance.clamp_min(1e-9).sqrt().view(view_shape) * self.std_change
         )
         if self.recalibrator is not None:
-            mean, sigma = self.recalibrator.recalibrate(mean, sigma)
+            mean , sigma = self.recalibrator.recalibrate(mean, sigma)
         u = (mean - self.best_f.expand_as(mean)) / sigma
         if not self.maximize:
             u = -u

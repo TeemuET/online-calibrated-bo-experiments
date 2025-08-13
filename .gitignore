@@ -133,6 +133,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Aggregated CSV files
+*.csv
+
 # Spyder project settings
 .spyderproject
 .spyproject

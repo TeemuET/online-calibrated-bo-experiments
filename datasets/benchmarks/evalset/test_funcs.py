@@ -408,6 +408,23 @@ class Ackley(TestFunction):
             + exp(1)
         )
 
+class SixHumpCamel(TestFunction):
+    def __init__(self, dim=2):
+        assert dim == 2
+        super(SixHumpCamel, self).__init__(dim)
+        self.bounds = [[-2, 2], [-1.5, 1.5]]
+        self.min_loc = [0.08984201368301331, -0.7126564032704135]
+        self.fmin = -1.031628
+        self.fmax = 17.98333333333
+        self.classifiers = ["multi_min"]
+
+    def do_evaluate(self, x):
+        x1, x2 = x
+        return (
+            (4 - 2.1 * x1 ** 2 + x1 ** 4 / 3) * x1 ** 2
+            + x1 * x2
+            + (4 * x2 ** 2 - 4) * x2 ** 2
+        )
 
 class Adjiman(TestFunction):
     def __init__(self, dim=2):

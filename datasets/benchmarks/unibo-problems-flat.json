@@ -14,6 +14,7 @@
     { "name": "Schwefel01", "dim": 1 },
     { "name": "Step", "dim": 1 },
     { "name": "Schwefel20", "dim": 1 },
+    { "name": "SixHumpCamel", "dim": 2},
     { "name": "Adjiman", "dim": 2 },
     { "name": "Csendes", "dim": 2 },
     { "name": "Ursem04", "dim": 2 },

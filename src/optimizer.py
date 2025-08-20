@@ -2,12 +2,13 @@ from src.dataset import Dataset
 from src.parameters import *
 from surrogates.gaussian_process import GaussianProcess
 from botorch.generation.sampling import MaxPosteriorSampling
+from typing import Any
 from botorch.optim import optimize_acqf
 from acquisitions.botorch_acqs import (
     ExpectedImprovement,
     UpperConfidenceBound,
 )
-from src.recalibrator import Recalibrator
+from src.recalibrator import RecalibratorUNIBOv1, RecalibratorUNIBOv2
 import warnings
 
 
@@ -31,7 +32,7 @@ class Optimizer(object):
         self.is_fitted = True
 
     def construct_acquisition_function(
-        self, dataset: Dataset, recalibrator: Recalibrator = None
+        self, dataset: Dataset, recalibrator: Any = None
     ) -> None:
         if not self.is_fitted:
             raise RuntimeError("Surrogate has not been fitted!")
@@ -43,14 +44,17 @@ class Optimizer(object):
                 maximize=self.maximization,
                 std_change=self.std_change,
                 recalibrator=recalibrator,
+                recalibrator_type=self.parameters.recalibrator_type,
             )
         elif self.acquisition == "UCB":
             self.acquisition_function = UpperConfidenceBound(
                 self.surrogate_model,
                 beta=self.parameters.beta,
+                quantile_level=self.parameters.quantile_level,
                 maximize=self.maximization,
                 std_change=self.std_change,
                 recalibrator=recalibrator,
+                recalibrator_type=self.parameters.recalibrator_type,
             )
         else:
             raise ValueError(f"Acquisition function {self.acquisition} not supported.")
@@ -59,12 +63,13 @@ class Optimizer(object):
         self,
         dataset: Dataset,
         X_pool: np.ndarray = None,
-        recalibrator: Recalibrator = None,
+        recalibrator: Any = None,
         return_idx: bool = False,
     ) -> Dict[np.ndarray, np.ndarray]:
         assert self.is_fitted
         
         device = torch.device(self.parameters.device)
+        
         self.construct_acquisition_function(dataset, recalibrator)
 
         #Why do we sample X_test again here???

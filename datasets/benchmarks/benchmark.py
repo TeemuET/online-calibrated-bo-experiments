@@ -51,7 +51,7 @@ class Benchmark(object):
         self.X_pool, self.y_pool, self.f_pool = self.sample_data(
             n_samples=self.n_pool, first_time=True, test_set=False
         )
-
+    
         self.X_test, self.y_test, self.f_test = self.sample_data(
             n_samples=self.n_test, first_time=True, test_set=True
         )
@@ -60,7 +60,6 @@ class Benchmark(object):
         self.X_train = self.X_pool[init_indexes]
         self.y_train = self.y_pool[init_indexes]
         self.f_train = self.f_pool[init_indexes]
-
 
         self.X_pool = np.delete(self.X_pool, init_indexes, axis=0)
         self.y_pool = np.delete(self.y_pool, init_indexes, axis=0)
@@ -76,7 +75,10 @@ class Benchmark(object):
         self.f_mean_pool_scaling = np.mean(f)
         self.f_std_pool_scaling = np.std(f)
         self.signal_std_pool = np.std(f)
-        self.noise_std = np.sqrt(self.signal_std_pool ** 2 / self.snr)
+        if self.noisify:
+            self.noise_std = np.sqrt(self.signal_std_pool ** 2 / self.snr)
+        else: 
+            self.noise_std = 0.0
         self.ne_true = -norm.entropy(loc=0, scale=self.noise_std)
         self.y_mean_pool_scaling = self.f_mean_pool_scaling
         self.y_std_pool_scaling = np.sqrt(self.f_std_pool_scaling ** 2 + self.noise_std ** 2)

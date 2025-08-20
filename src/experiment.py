@@ -5,8 +5,8 @@ from src.metrics import Metrics
 from src.dataset import Dataset
 from src.optimizer import Optimizer
 from .parameters import Parameters
-from src.recalibrator import Recalibrator
-
+from src.recalibrator import RecalibratorUNIBOv2, RecalibratorUNIBOv1
+from tqdm import tqdm
 
 class Experiment(object):
     def __init__(self, parameters: Parameters) -> None:
@@ -17,7 +17,7 @@ class Experiment(object):
         self.optimizer = Optimizer(parameters)
         self.metrics = Metrics(parameters)
         self.parameters = parameters
-
+    
     def __str__(self):
         return (
             "Experiment:"
@@ -61,14 +61,24 @@ class Experiment(object):
         # Epoch 0
         self.optimizer.fit_surrogate(self.dataset)
         self._track_surrogate_state("Initial", self.optimizer.surrogate_object)
-        recalibrator = (
-            Recalibrator(
-                self.dataset, self.optimizer.surrogate_object, mode=self.recal_mode,
-            )
-            if self.recalibrate
-            else None
-        )
+
+
+        if self.recalibrate:    
+            if self.recalibrator_type == "v1":
+                recalibrator = RecalibratorUNIBOv1(
+                    self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                )
+            elif self.recalibrator_type == "v2":
+                recalibrator = RecalibratorUNIBOv2(
+                    self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                )
+            else:
+                raise ValueError(f"Recalibrator type '{self.recalibrator_type}' not recognized.")    
+        else: 
+            recalibrator = None
+            
         self._track_surrogate_state("Post-recalibration", self.optimizer.surrogate_object)
+        
         self.metrics.analyze(
             self.optimizer.surrogate_object,
             self.dataset,
@@ -79,22 +89,25 @@ class Experiment(object):
             # Epochs > 0
             for e in tqdm(range(self.n_evals), desc="BO Iterations"):
 
-                recalibrator = (
-                    Recalibrator(
-                        self.dataset,
-                        self.optimizer.surrogate_object,
-                        mode=self.recal_mode,
-                    )
-                    if self.recalibrate
-                    else None
-                )
+                if self.parameters.recalibrate:    
+                    if self.recalibrator_type == "v1":
+                        recalibrator = RecalibratorUNIBOv1(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    elif self.parameters.recalibrator_type == "v2":
+                        recalibrator = RecalibratorUNIBOv2(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    else:
+                        raise ValueError(f"Recalibrator type '{self.recalibrator_type}' not recognized.")    
+                else: 
+                    recalibrator = None
                     
                 self._track_surrogate_state(("Post recalibration", e), self.optimizer.surrogate_object)
-                if self.parameters.fix_surrogate_logic:
-                    self.optimizer.fit_surrogate(self.dataset)
-                    
+                                    
                 self._track_surrogate_state(("Before BO iteration", e), self.optimizer.surrogate_object)
                 # BO iteration
+                
                 x_next, acq_val, i_choice = self.optimizer.bo_iter(
                     self.dataset,
                     X_pool=self.dataset.data.X_pool,
@@ -109,6 +122,14 @@ class Experiment(object):
                     else None
                 )
 
+                self.metrics.update_online_calibration_data(
+                    self.optimizer.surrogate_object, recalibrator, x_next, y_next
+                )
+                
+                self.metrics.update_online_crps(
+                    self.optimizer.surrogate_object, recalibrator, x_next, y_next
+                )
+                
                 # add to dataset
                 self.dataset.add_data(x_next, y_next, f_next, i_choice=i_choice)
 
@@ -117,6 +138,8 @@ class Experiment(object):
 
                 # Update surrogate
                 self.optimizer.fit_surrogate(self.dataset)
+                
+                self.metrics.calculate_online_calibration()
                 
                 self._track_surrogate_state(("After fitting on the new x_next", e), self.optimizer.surrogate_object)
                 if self.analyze_all_epochs:
@@ -140,15 +163,19 @@ class Experiment(object):
                     X, y, f = self.dataset.data.sample_data(n_samples=1)
                     self.dataset.add_data(X, y, f)
                     self.optimizer.fit_surrogate(self.dataset)
-                    recalibrator = (
-                        Recalibrator(
-                            self.dataset,
-                            self.optimizer.surrogate_object,
-                            mode=self.recal_mode,
-                        )
-                        if self.recalibrate
-                        else None
-                    )
+                    if self.parameters.recalibrate:    
+                        if self.recalibrator_type == "v1":
+                            recalibrator = RecalibratorUNIBOv1(
+                                self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                            )
+                        elif self.recalibrator_type == "v2":
+                            recalibrator = RecalibratorUNIBOv2(
+                                self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                            )
+                        else:
+                            raise ValueError(f"Recalibrator type '{self.recalibrator_type}' not recognized.")    
+                    else: 
+                        recalibrator = None
                     self.metrics.analyze(
                         self.optimizer.surrogate_object,
                         self.dataset,
@@ -159,15 +186,17 @@ class Experiment(object):
                 X, y, f = self.dataset.data.sample_data(self.n_evals)
                 self.dataset.add_data(X, y, f)
                 self.optimizer.fit_surrogate(self.dataset)
-                recalibrator = (
-                    Recalibrator(
-                        self.dataset,
-                        self.optimizer.surrogate_object,
-                        mode=self.recal_mode,
-                    )
-                    if self.recalibrate
-                    else None
-                )
+                if self.parameters.recalibrate:    
+                    if self.recalibrator_type == "v1":
+                        recalibrator = RecalibratorUNIBOv1(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    elif self.recalibrator_type == "v2":
+                        recalibrator = RecalibratorUNIBOv2(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    else:
+                        raise ValueError(f"Recalibrator type '{self.recalibrator_type}' not recognized.") 
             self.metrics.analyze(
                 self.optimizer.surrogate_object,
                 self.dataset,

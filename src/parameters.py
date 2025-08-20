@@ -23,12 +23,15 @@ class Parameters:
     vanilla: bool = False  # simplest implementation (used for test)
     plot_it: bool = False  # whether to plot during BO loop
     save_it: bool = True  # whether to save progress
-    bo: bool = False  # performing bo to sample X or merely randomly sample X
+    bo: bool = True  # performing bo to sample X or merely randomly sample X
+    scale_kernel = True 
     noisify: bool = True
-    fix_surrogate_logic = True # bug fix for the logic of the surrogate model in experiments.yp
+    recalibrator_type: str = "v2"
+    recalibration_method: str = "isotonic"  # method for recalibration, e.g., "isotonic", "gp"
     track_surrogate_state: bool = False  # whether to track surrogate state
     test: bool = True
     beta: float = 1.0 #beta value if acquisition function is UCB. Experimenting with different values seem to indicate that beta = 1 is best, but this is probably largely dependant on optim. problem. 
+    quantile_level = 0.95
     recalibrate: bool = False
     analyze_all_epochs: bool = True
     extensive_metrics: bool = True
@@ -146,4 +149,3 @@ class Parameters:
         if self.device == "cuda" and not torch.cuda.is_available():
             warnings.warn("CUDA device requested but not available. Falling back to CPU.")
             self.device = "cpu"
-            

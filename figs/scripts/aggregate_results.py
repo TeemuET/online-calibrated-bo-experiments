@@ -3,6 +3,7 @@ import json
 import pandas as pd
 from tqdm import tqdm
 import argparse
+import numpy as np
 
 def aggregate_results(base_path):
     """
@@ -60,11 +61,12 @@ def aggregate_results(base_path):
                     "final_cumulative_regret_pool": sum(regret_history_pool) if regret_history_pool else None,
                     "final_cumulative_regret_pool_rescaled": sum(regret_history_pool) * y_std if regret_history_pool else None,
                     
-                    # 3. Final values for other key metrics
-                    "final_calibration_mse": metrics.get("y_calibration_mse", [None])[-1],
-                    "final_sharpness": metrics.get("uct_sharpness", [None])[-1],
-                    "final_nmse": metrics.get("nmse", [None])[-1],
-                    "final_elpd": metrics.get("elpd", [None])[-1],
+                    # 3. Mean values for other key metrics over the entire run
+                    "mean_calibration_mse": np.mean(metrics.get("y_calibration_mse", [])) if metrics.get("y_calibration_mse") else None,
+                    "mean_uct_sharpness": np.mean(metrics.get("uct_sharpness", [])) if metrics.get("uct_sharpness") else None,
+                    "mean_gaussian_sharpness": np.mean(metrics.get("gaussian_sharpness", [])) if metrics.get("gaussian_sharpness") else None,
+                    "mean_nmse": np.mean(metrics.get("nmse", [])) if metrics.get("nmse") else None,
+                    "mean_elpd": np.mean(metrics.get("elpd", [])) if metrics.get("elpd") else None,
                 }
                 all_results.append(result_row)
 

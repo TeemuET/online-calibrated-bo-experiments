@@ -1,4 +1,5 @@
 [
+    {"name": "Forrester", "dim": 1},
     { "name": "Csendes", "dim": 1 },
     { "name": "Exponential", "dim": 1 },
     { "name": "Problem13", "dim": 1 },

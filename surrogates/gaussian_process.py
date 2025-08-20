@@ -27,6 +27,7 @@ class GaussianProcess(object):
     ):
         self.name = name
         self.seed = parameters.seed
+        self.scale_kernel = parameters.scale_kernel
         self.d = parameters.d
         self.device = torch.device(parameters.device)
         self.std_change = parameters.std_change
@@ -37,10 +38,14 @@ class GaussianProcess(object):
                 outputscale_prior=NormalPrior(1.0, 5.0),
             )
         else:
-            self.kernel = ScaleKernel(
-                RBFKernel(lengthscale_prior=LogNormalPrior(0.1, 1)),
-                outputscale_prior=NormalPrior(1.0, 2.0),
-            )
+            if self.scale_kernel:
+                self.kernel = ScaleKernel(
+                    RBFKernel(lengthscale_prior=LogNormalPrior(0.1, 1)),
+                    outputscale_prior=NormalPrior(1.0, 2.0),
+                )
+            else:
+                self.kernel = RBFKernel(lengthscale_prior=LogNormalPrior(0.1, 1))
+            
         self.kernel = self.kernel.to(self.device)
         self.fit(X_train=dataset.data.X_train, y_train=dataset.data.y_train)
 

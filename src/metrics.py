@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from numpy import save
 from uncertainty_toolbox.metrics import *
-from src.recalibrator import Recalibrator
+from src.recalibrator import RecalibratorUNIBOv1, RecalibratorUNIBOv2
+from typing import Any
 from imports.general import *
 from imports.ml import *
 from src.parameters import Parameters
@@ -19,6 +20,8 @@ class Metrics(object):
         self.__dict__.update(asdict(parameters))
         self.n_init = parameters.n_initial
         self.p_array = np.linspace(0.001, 0.999, self.n_calibration_bins)
+        self.online_cdf_values = []
+        self.online_crps_scores = []
         self.summary = {
             "p_array": self.p_array.tolist(),
             "mean_sharpness": [],
@@ -45,6 +48,10 @@ class Metrics(object):
             "f_regret_pool": [],
             "f_regret_test": [],
             "x_y_opt_dist_pool": [],
+            "online_crps": [],
+            "crps_test": [],
+            "online_calibration_nmse": [],
+            "online_calibration_mse": [],
             "x_f_opt_dist_pool": [],
             "x_y_opt_dist_test": [],
             "x_f_opt_dist_test": [],
@@ -91,6 +98,36 @@ class Metrics(object):
                     - mean_sharpness,
                 }
             )
+
+    def calculate_crps_test_set(
+        self, mus: np.ndarray, sigmas: np.ndarray, y: np.ndarray
+    ) -> None:
+        """
+        Calculates the CRPS on a large, fixed test set.
+        """
+        
+        crps_scores = crps_gaussian(mus.flatten(), sigmas.flatten(), y.flatten())
+        mean_crps = np.mean(crps_scores)
+        self.update_summary({"crps_test": mean_crps})
+
+
+    def update_online_crps(self, surrogate: Model, recalibrator: Any, x_next: np.ndarray, y_next: np.ndarray) -> None:
+        """
+        Calculates CRPS for the single next observation and updates the running list.
+        This must be called BEFORE the model is updated with (x_next, y_next).
+        """
+        mu_next, sigma_next = surrogate.predict(x_next)
+        
+        if recalibrator is not None:
+            mu_next, sigma_next = recalibrator.recalibrate(mu_next, sigma_next)
+        
+        single_crps = crps_gaussian(mu_next.flatten(), sigma_next.flatten(), y_next.flatten())
+        
+        # Store the individual score
+        self.online_crps_scores.append(single_crps.squeeze())
+        
+        # Update the summary with the running average
+        self.update_summary({"online_crps": np.mean(self.online_crps_scores)})
 
     def bias(self, mus: np.ndarray, f: np.ndarray) -> None:
         mse = np.mean((mus - f) ** 2)
@@ -301,6 +338,8 @@ class Metrics(object):
         elpd = np.mean(log_pdfs)
         self.update_summary({"elpd": elpd})
 
+
+
     def improvement(self, dataset: Dataset):
         self.update_summary(
             {
@@ -370,6 +409,9 @@ class Metrics(object):
                 "next_sample_train_distance": min_dist,
             }
         )
+        
+
+    
 #---------------------------
 #YOU WERE BUSY UPDATING HERE
 #YOU NEED TO CHECK THE ABOVE FUNCTIONS TO SEE IF THEY HAVE ANY ISSUES WITH ANALYZE FUNCTION AND UPDATED DATASETS
@@ -379,7 +421,7 @@ class Metrics(object):
         self,
         surrogate: Model,
         dataset: Dataset,
-        recalibrator: Recalibrator = None,
+        recalibrator: Any = None,
         extensive: bool = True,
     ) -> None:
         if surrogate is not None and extensive:
@@ -405,6 +447,7 @@ class Metrics(object):
             self.calibration_y_local(
                 dataset.data.X_train, X_test, y_test, mu_test, sigma_test
             )
+            self.calculate_crps_test_set(mu_test, sigma_test, y_test)
             self.sharpness_gaussian(dataset, mu_test, sigma_test)
             self.expected_log_predictive_density(
                 mu_test, sigma_test, y_test,
@@ -423,4 +466,50 @@ class Metrics(object):
         #self.regret(dataset)
         #self.glob_min_dist(dataset, test_set=True)
         #self.glob_min_dist(dataset, test_set=False)
+        
+    def update_online_calibration_data(self, surrogate: Model, recalibrator: Any, x_next: np.ndarray, y_next: np.ndarray) -> None:
+        """
+        Calculates the model's predicted CDF for the next observation and stores it.
+        This must be called BEFORE the model is updated with (x_next, y_next).
+        """
+        mu_next, sigma_next = surrogate.predict(x_next)
+        
+        if recalibrator is not None:
+            mu_next, sigma_next = recalibrator.recalibrate(mu_next, sigma_next)
+        
+        sigma_next = np.maximum(sigma_next, 1e-9)
+        cdf_val = norm.cdf(y_next, loc=mu_next, scale=sigma_next)
+        self.online_cdf_values.append(cdf_val.squeeze())
+        
+    def calculate_online_calibration(self) -> None:
+        """
+        Calculates the online calibration score based on all sequentially collected data.
+        This implements the logic for cal = Σ(pj - ˆpj)².
+        """
+        if not self.online_cdf_values:
+            # Cannot calculate if no data has been collected
+            return
+
+        # Convert the collected python list to a NumPy array for efficient calculation
+        observed_cdfs = np.array(self.online_cdf_values)
+
+        # To calculate ˆpj for all pj in self.p_array, we check what fraction of
+        # observed CDFs are <= each pj. Broadcasting is used for efficiency.
+        # Shape of observed_cdfs is (n_samples, 1)
+        # Shape of self.p_array is (n_bins,)
+        # Result of comparison is (n_samples, n_bins), then we average over samples.
+        p_hat_array = np.mean((observed_cdfs[:, np.newaxis] <= self.p_array), axis=0)
+
+        # Calculate the Mean Squared Error between expected (p_array) and observed (p_hat_array)
+        mse = np.mean((p_hat_array - self.p_array) ** 2)
+        
+        # Normalize the MSE by the variance of the target probabilities
+        p_array_var = np.var(self.p_array)
+        nmse = mse / p_array_var if p_array_var > 0 else 0.0
+
+        self.update_summary({
+            "online_calibration_mse": mse,
+            "online_calibration_nmse": nmse,
+        })
+
 

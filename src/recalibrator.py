@@ -4,18 +4,108 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.model_selection import LeavePOut as LeaveKOut
 from sklearn.model_selection import KFold, LeaveOneOut
 from src.dataset import Dataset
+from src.parameters import Parameters
+from copy import deepcopy
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 
+class RecalibratorUNIBOv2(object):
+    
+    def __init__(
+        self,
+        dataset: Dataset,
+        model,
+        parameters: Parameters,
+        mode: str = "cv",
+        quantile_level: float = 0.95,
+    ) -> None:
 
-class Recalibrator(object):
-    def __init__(self, dataset: Dataset, model, mode: str = "cv") -> None:
-        self.cv_module = LeaveOneOut()
+        if mode == "cv":
+            self.cv_module = LeaveOneOut()
+        else:
+            raise NotImplementedError("Only CV implemented for this procedure.")
+        
         self.mode = mode
-        mus, sigmas, ys_true = self.make_recal_dataset(dataset, model)
-        self.recalibrator_model = self.train_recalibrator_model(mus, sigmas, ys_true)
-        #model.fit(dataset.data.X_train, dataset.data.y_train)
+        temp_model = deepcopy(model)
+        mus, sigmas, ys_true = self.make_recal_dataset(dataset, temp_model)
+        self.recalibrator_model = self.train_recalibrator_model(mus, sigmas, ys_true, recalibration_method=parameters.recalibration_method)
+        self.recalibrated_z_score, self.scaling_factor = self._calculate_scaling_factor(quantile_level=quantile_level, recalibration_method=parameters.recalibration_method)
 
     def make_recal_dataset(self, dataset: Dataset, model):
-        if self.mode == "cv":
+        X_train, y_train = dataset.data.X_train, dataset.data.y_train
+        mus, sigmas, ys_true = np.array([]), np.array([]), np.array([])
+        for train_index, val_index in self.cv_module.split(X_train):
+            X_train_, y_train_ = X_train[train_index, :], y_train[train_index]
+            X_val, y_val = X_train[val_index, :], y_train[val_index]
+            model.fit(X_train_, y_train_)
+            mus_val, sigs_val = model.predict(X_val)
+            mus = np.append(mus, mus_val)
+            sigmas = np.append(sigmas, sigs_val)
+            ys_true = np.append(ys_true, y_val.squeeze())
+        return mus, sigmas, ys_true
+
+    def train_recalibrator_model(self, mu_test, sig_test, y_val, recalibration_method: str ="isotonic"):
+        CDF = norm.cdf(y_val.squeeze(), mu_test.squeeze(), sig_test.squeeze()).squeeze()
+        P = np.vectorize(lambda p: np.mean(CDF < p))
+        P_hat = P(CDF)
+
+        if recalibration_method == "isotonic":
+            model = IsotonicRegression(
+                y_min=0, y_max=1, increasing=True, out_of_bounds="clip"
+            ).fit(CDF, P_hat)
+        elif recalibration_method == "gp": 
+            kernel = RBF() + WhiteKernel()
+            model = GaussianProcessRegressor(
+                kernel=kernel,
+                n_restarts_optimizer=10,
+                normalize_y=True,
+                random_state=0
+            ).fit(CDF.reshape(-1,1), P_hat)
+        else: raise ValueError(f"Recalibration method '{recalibration_method}' not recognized.")
+        return model    
+    
+    def _calculate_scaling_factor(self, quantile_level: float, recalibration_method: str = "isotonic"):
+        
+        if recalibration_method == "isotonic":
+            calibrated_ps = self.recalibrator_model.y_thresholds_
+            uncalibrated_ps = self.recalibrator_model.X_thresholds_
+            p_uncalibrated = np.interp(quantile_level, calibrated_ps, uncalibrated_ps)
+        elif recalibration_method == "gp":    
+            uncalibrated_ps_grid = np.linspace(0, 1, 500).reshape(-1, 1)
+            calibrated_ps_pred = self.recalibrator_model.predict(uncalibrated_ps_grid)
+            p_uncalibrated = np.interp(quantile_level, calibrated_ps_pred, uncalibrated_ps_grid.ravel())
+            
+        p_uncalibrated = np.clip(p_uncalibrated, 0.0, 1.0 - 1e-9)
+        z_recalibrated = norm.ppf(p_uncalibrated)
+        z_vanilla = norm.ppf(quantile_level)
+        
+        if np.isclose(z_vanilla, 0):
+            return 1.0 # Avoid division by zero
+        
+        scaling_factor = z_recalibrated / z_vanilla
+        return z_recalibrated, scaling_factor
+
+    def recalibrate(self, mu_preds, sig_preds):
+        mu_recalibrated = mu_preds        
+        sig_recalibrated = sig_preds * self.scaling_factor
+        return mu_recalibrated, sig_recalibrated
+
+class RecalibratorUNIBOv1(object):
+    def __init__(self, dataset: Dataset, model, parameters: Parameters, mode: str = "cv") -> None:
+        if mode == "kfold":
+            self.cv_module = KFold(n_splits=parameters.n_initial)
+        else:
+            self.cv_module = LeaveOneOut()
+        self.mode = mode
+        
+        temp_model = deepcopy(model)
+        mus, sigmas, ys_true = self.make_recal_dataset(dataset, temp_model)
+        self.recalibrator_model = self.train_recalibrator_model(
+            mus, sigmas, ys_true, recalibration_method=parameters.recalibration_method
+        )
+
+    def make_recal_dataset(self, dataset: Dataset, model):
+        if self.mode == "cv" or self.mode == "kfold":
             X_train, y_train = dataset.data.X_train, dataset.data.y_train
             mus, sigmas, ys_true = np.array([]), np.array([]), np.array([])
             for train_index, val_index in self.cv_module.split(X_train):
@@ -34,21 +124,29 @@ class Recalibrator(object):
             mus_val, sigs_val = model.predict(X_val)
             return mus_val, sigs_val, y_val
         
-    def train_recalibrator_model(self, mu_test, sig_test, y_val):
+    def train_recalibrator_model(self, mu_test, sig_test, y_val, recalibration_method: str = "isotonic"):
         CDF = norm.cdf(y_val.squeeze(), mu_test.squeeze(), sig_test.squeeze()).squeeze()
         P = np.vectorize(lambda p: np.mean(CDF < p))
         P_hat = P(CDF)
-        ir = IsotonicRegression(
-            y_min=0, y_max=1, increasing=True, out_of_bounds="clip"
-        ).fit(CDF, P_hat)
-        calibrate_fun = lambda x: ir.predict(x)
-        return calibrate_fun
+        
+        if recalibration_method == "isotonic":
+            model = IsotonicRegression(
+                y_min=0, y_max=1, increasing=True, out_of_bounds="clip"
+            ).fit(CDF, P_hat)
+        elif recalibration_method == "gp":
+            kernel = RBF() + WhiteKernel()
+            model = GaussianProcessRegressor(
+                kernel=kernel,
+                n_restarts_optimizer=10,
+                normalize_y=True,
+                random_state=0
+            ).fit(CDF.reshape(-1, 1), P_hat)
+        else:
+            raise ValueError(f"Recalibration method '{recalibration_method}' not recognized.")
+            
+        return model
 
     def estimate_moments_from_ecdf(self, y_space, cdf_hat):
-        """
-            Estimates the mean and variance from discritized CDF.
-            Works by approximating the PDF by finite difference
-        """
         y_space = y_space.squeeze()
         cdf_hat = cdf_hat.squeeze()
         pdf_hat = np.diff(cdf_hat)
@@ -74,10 +172,15 @@ class Recalibrator(object):
 
         n_steps = 100
         mu_new, std_new = [], []
+        
+        if not isinstance(mu_preds, np.ndarray) or mu_preds.ndim == 0:
+            mu_preds = np.array([mu_preds])
+            sig_preds = np.array([sig_preds])
+        
         for mu_i, std_i in zip(mu_preds, sig_preds):
             y_space = np.linspace(mu_i - 3 * std_i, mu_i + 3 * std_i, n_steps)
             cdf = norm.cdf(y_space, mu_i.squeeze(), std_i.squeeze())
-            cdf_hat = self.recalibrator_model(cdf)
+            cdf_hat = self.recalibrator_model.predict(cdf.reshape(-1, 1))
             mu_i_hat, v_i_hat = self.estimate_moments_from_ecdf(y_space, cdf_hat)
             mu_new.append(mu_i_hat)
             std_new.append(np.sqrt(v_i_hat))

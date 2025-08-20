@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from abc import ABC
 from copy import deepcopy
-from typing import Dict, Optional, Tuple, Union
-
+from typing import Dict, Optional, Tuple, Union, Any
+from imports.ml import *
 import torch
 from botorch.acquisition import ScalarizedPosteriorTransform
 from botorch.acquisition.acquisition import AcquisitionFunction
@@ -29,8 +29,7 @@ from botorch.utils.transforms import standardize
 from torch import Tensor
 from torch.distributions import Normal
 
-from src.recalibrator import Recalibrator
-
+from src.recalibrator import RecalibratorUNIBOv1, RecalibratorUNIBOv2
 
 class AnalyticAcquisitionFunction(AcquisitionFunction, ABC):
     r"""Base class for analytic acquisition functions."""
@@ -108,7 +107,8 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
         objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
         std_change: float = 1.0,
-        recalibrator: Recalibrator = None,
+        recalibrator: Any = None,
+        recalibrator_type: Optional[str] = None,
     ) -> None:
         r"""Single-outcome Expected Improvement (analytic).
 
@@ -298,10 +298,12 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         self,
         model: Model,
         beta: Union[float, Tensor],
+        quantile_level: Optional[float] = None,
         objective: Optional[ScalarizedPosteriorTransform] = None,
         maximize: bool = True,
         std_change: float = 1.0,
-        recalibrator: Recalibrator = None,
+        recalibrator: Any = None,
+        recalibrator_type: Optional[str] = None,
     ) -> None:
         r"""Single-outcome Upper Confidence Bound.
 
@@ -317,9 +319,23 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         self.maximize = maximize
         self.std_change = std_change
         self.recalibrator = recalibrator
-        if not torch.is_tensor(beta):
-            beta = torch.tensor(beta)
-        self.register_buffer("beta", beta)
+        self.recalibrator_type = recalibrator_type
+        
+        
+        #if not torch.is_tensor(beta):
+        #    beta = torch.tensor(beta)
+        #self.register_buffer("beta", beta)
+
+        if quantile_level is not None:
+            z_score = norm.ppf(quantile_level)
+            final_beta = z_score**2
+        elif beta is not None:
+            final_beta = beta
+        else:
+            raise ValueError(
+                "For UCB, you must provide either 'quantile_level' or 'beta'."
+            )
+        self.register_buffer("beta", torch.tensor(final_beta))
 
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X: Tensor) -> Tensor:
@@ -340,11 +356,25 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         variance = torch.pow(
             posterior.variance.view(batch_shape).sqrt() * self.std_change, 2
         )
+        sigma = variance.sqrt()
+        
         if self.recalibrator is not None:
-            mean, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
-            variance = torch.pow(sigma, 2)
-
-        delta = (self.beta.expand_as(mean) * variance).sqrt()
+            # --- CALIBRATED CASE ---
+            # The recalibrated z-score from the object REPLACES beta.
+            if self.recalibrator_type == "v1":
+                mean, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
+                variance = torch.pow(sigma, 2)
+                delta = (self.beta.expand_as(mean) * variance).sqrt()
+            elif self.recalibrator_type == "v2":
+                z = self.recalibrator.recalibrated_z_score
+                delta = z * sigma
+                
+            #if self.recalibrator is not None:
+            #    _, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
+            #    variance = torch.pow(sigma, 2)
+        else: 
+            delta = (self.beta.expand_as(mean) * variance).sqrt()
+            
         if self.maximize:
             return mean + delta
         else:

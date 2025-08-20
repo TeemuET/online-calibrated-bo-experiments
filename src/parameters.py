@@ -106,13 +106,14 @@ class Parameters:
         else:
             # For full runs, create a structured, hierarchical path
             # e.g., ./results_synth_data/GP-EI-BENCHMARKS/problem_15/seed_3/
+            
             full_path = os.path.join(
                 base_save_path,
-                self.experiment,
-                f"problem_{self.problem_idx}",
-                f"seed_{self.seed}",
+                self.experiment,       # e.g., "GP-UCB-10init-recal_None"
+                self.problem,          # e.g., "Forrester"
+                f"seed_{self.seed}",    # e.g., "seed_5"
             )
-
+            
         # Set the final save path, ensuring it ends with a separator
         setattr(self, "savepth", os.path.join(full_path, ""))
         

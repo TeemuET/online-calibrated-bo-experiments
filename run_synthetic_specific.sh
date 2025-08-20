@@ -15,6 +15,7 @@ DIMS=(         1           2        2       4     10)
 
 NUM_SEEDS_PER_PROBLEM=10
 
+SURROGATE="GP"
 ACQUISITION="UCB"
 N_INITIAL=10
 QUANTILE_LEVEL=0.95
@@ -49,7 +50,7 @@ else
     RECAL_ARGS="recalibrate=True|recalibrator_type=${METHOD}"
 fi
 
-EXPERIMENT_NAME="${PROBLEM_NAME}${PROBLEM_DIM}D-${ACQUISITION}-${N_INITIAL}init-recal_${METHOD}-quantile_${QUANTILE_LEVEL}-noisify_${NOISIFY}"
+EXPERIMENT_NAME="${SURROGATE}-${ACQUISITION}-${N_INITIAL}init-recal_${METHOD}-quantile_${QUANTILE_LEVEL}-noisify_${NOISIFY}"
 
 ARGS="problem=${PROBLEM_NAME}|d=${PROBLEM_DIM}|seed=${SEED}|experiment=${EXPERIMENT_NAME}"
 ARGS+="|acquisition=${ACQUISITION}|n_initial=${N_INITIAL}|quantile_level=${QUANTILE_LEVEL}"

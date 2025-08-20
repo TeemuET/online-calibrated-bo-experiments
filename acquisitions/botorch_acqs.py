@@ -16,6 +16,7 @@ from copy import deepcopy
 from typing import Dict, Optional, Tuple, Union, Any
 from imports.ml import *
 import torch
+import numpy as np
 from botorch.acquisition import ScalarizedPosteriorTransform
 from botorch.acquisition.acquisition import AcquisitionFunction
 from botorch.utils.transforms import t_batch_mode_transform
@@ -29,7 +30,6 @@ from botorch.utils.transforms import standardize
 from torch import Tensor
 from torch.distributions import Normal
 
-from src.recalibrator import RecalibratorUNIBOv1, RecalibratorUNIBOv2
 
 class AnalyticAcquisitionFunction(AcquisitionFunction, ABC):
     r"""Base class for analytic acquisition functions."""
@@ -80,6 +80,66 @@ class AnalyticAcquisitionFunction(AcquisitionFunction, ABC):
         raise UnsupportedError(
             "Analytic acquisition functions do not account for X_pending yet."
         )
+
+class NumericalExpectedImprovement(AnalyticAcquisitionFunction):
+    """
+    Calculates Expected Improvement via numerical integration over the
+    recalibrated distribution.
+    """
+    def __init__(
+        self,
+        model: Model,
+        best_f: Union[float, Tensor],
+        recalibrator: Any,
+        maximize: bool = True,
+        n_steps: int = 100,
+        **kwargs,
+    ):
+        super().__init__(model=model)
+        self.recalibrator = recalibrator
+        self.maximize = maximize
+        self.n_steps = n_steps
+        if not torch.is_tensor(best_f):
+            best_f = torch.tensor(best_f)
+        self.register_buffer("best_f", best_f)
+
+    @t_batch_mode_transform(expected_q=1)
+    def forward(self, X: Tensor) -> Tensor:
+        self.best_f = self.best_f.to(X)
+        posterior = self._get_posterior(X=X)        
+        mean = posterior.mean.squeeze(-2).cpu().numpy()
+        sigma = posterior.variance.clamp_min(1e-9).sqrt().squeeze(-2).cpu().numpy()
+        y_best = self.best_f.cpu().numpy()
+        
+        batch_size = X.shape[0]
+        ei_values = np.zeros(batch_size)
+
+        for i in range(batch_size):
+            mu_i, sigma_i = mean[i], sigma[i]
+            
+            # 1. Discretize the distribution
+            y_space = np.linspace(mu_i - 4 * sigma_i, mu_i + 4 * sigma_i, self.n_steps)
+            
+            # 2. Get recalibrated CDF values on the grid
+            p_uncal_grid = norm.cdf(y_space, loc=mu_i, scale=sigma_i)
+            p_recal_grid = self.recalibrator.recalibrator_model.predict(
+                p_uncal_grid.reshape(-1, 1)
+            ).flatten()
+
+            # 3. Approximate the probability mass at each interval
+            mass = np.diff(p_recal_grid, prepend=0)
+            mass = np.clip(mass, 0, 1) # Ensure mass is non-negative
+            
+            # 4. Calculate EI via weighted sum
+            if self.maximize:
+                improvement = np.maximum(0, y_space - y_best)
+            else:
+                improvement = np.maximum(0, y_best - y_space)
+            
+            ei_values[i] = np.sum(improvement * mass)
+            
+        return torch.tensor(ei_values, device=X.device, dtype=X.dtype)
+
 
 
 class ExpectedImprovement(AnalyticAcquisitionFunction):
@@ -361,11 +421,11 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         if self.recalibrator is not None:
             # --- CALIBRATED CASE ---
             # The recalibrated z-score from the object REPLACES beta.
-            if self.recalibrator_type == "v1":
+            if self.recalibrator_type == "UNIBOv1" or self.recalibrator_type == "ONLINEv1":
                 mean, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
                 variance = torch.pow(sigma, 2)
                 delta = (self.beta.expand_as(mean) * variance).sqrt()
-            elif self.recalibrator_type == "v2":
+            elif self.recalibrator_type == "UNBOv2" or self.recalibrator_type == "ONLINEv2":
                 z = self.recalibrator.recalibrated_z_score
                 delta = z * sigma
                 

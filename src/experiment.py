@@ -5,7 +5,7 @@ from src.metrics import Metrics
 from src.dataset import Dataset
 from src.optimizer import Optimizer
 from .parameters import Parameters
-from src.recalibrator import RecalibratorUNIBOv2, RecalibratorUNIBOv1
+from src.recalibrator import RecalibratorUNIBOv2, RecalibratorUNIBOv1, RecalibratorONLINEv1, RecalibratorONLINEv2
 from tqdm import tqdm
 
 class Experiment(object):
@@ -64,12 +64,20 @@ class Experiment(object):
 
 
         if self.recalibrate:    
-            if self.recalibrator_type == "v1":
+            if self.recalibrator_type == "UNIBOv1":
                 recalibrator = RecalibratorUNIBOv1(
                     self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                 )
-            elif self.recalibrator_type == "v2":
+            elif self.recalibrator_type == "UNIBOv2":
                 recalibrator = RecalibratorUNIBOv2(
+                    self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                )
+            elif self.parameters.recalibrator_type == "ONLINEv1":
+                recalibrator = RecalibratorONLINEv1(
+                    self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                )
+            elif self.parameters.recalibrator_type == "ONLINEv2":
+                recalibrator = RecalibratorONLINEv2(
                     self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                 )
             else:
@@ -90,12 +98,20 @@ class Experiment(object):
             for e in tqdm(range(self.n_evals), desc="BO Iterations"):
 
                 if self.parameters.recalibrate:    
-                    if self.recalibrator_type == "v1":
+                    if self.recalibrator_type == "UNIBOv1":
                         recalibrator = RecalibratorUNIBOv1(
                             self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                         )
-                    elif self.parameters.recalibrator_type == "v2":
+                    elif self.parameters.recalibrator_type == "UNIBOv2":
                         recalibrator = RecalibratorUNIBOv2(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    elif self.parameters.recalibrator_type == "ONLINEv1":
+                        recalibrator = RecalibratorONLINEv1(
+                            self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
+                        )
+                    elif self.parameters.recalibrator_type == "ONLINEv2":
+                        recalibrator = RecalibratorONLINEv2(
                             self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                         )
                     else:
@@ -164,11 +180,11 @@ class Experiment(object):
                     self.dataset.add_data(X, y, f)
                     self.optimizer.fit_surrogate(self.dataset)
                     if self.parameters.recalibrate:    
-                        if self.recalibrator_type == "v1":
+                        if self.recalibrator_type == "UNIBOv1":
                             recalibrator = RecalibratorUNIBOv1(
                                 self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                             )
-                        elif self.recalibrator_type == "v2":
+                        elif self.recalibrator_type == "UNIBOv2":
                             recalibrator = RecalibratorUNIBOv2(
                                 self.dataset, self.optimizer.surrogate_object, parameters=self.parameters, mode=self.recal_mode
                             )

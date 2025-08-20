@@ -6,9 +6,10 @@ from typing import Any
 from botorch.optim import optimize_acqf
 from acquisitions.botorch_acqs import (
     ExpectedImprovement,
+    NumericalExpectedImprovement,
     UpperConfidenceBound,
 )
-from src.recalibrator import RecalibratorUNIBOv1, RecalibratorUNIBOv2
+
 import warnings
 
 

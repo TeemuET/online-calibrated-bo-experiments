@@ -26,7 +26,8 @@ class Parameters:
     bo: bool = True  # performing bo to sample X or merely randomly sample X
     scale_kernel = True 
     noisify: bool = True
-    recalibrator_type: str = "v2"
+    eta: float = 0.5  # eta value for recalibration
+    recalibrator_type: str = "UNIBOv2"
     recalibration_method: str = "isotonic"  # method for recalibration, e.g., "isotonic", "gp"
     track_surrogate_state: bool = False  # whether to track surrogate state
     test: bool = True
@@ -107,10 +108,12 @@ class Parameters:
             # For full runs, create a structured, hierarchical path
             # e.g., ./results_synth_data/GP-EI-BENCHMARKS/problem_15/seed_3/
             
+            problem_folder = f"{self.problem}{self.d}D"
+            
             full_path = os.path.join(
                 base_save_path,
                 self.experiment,       # e.g., "GP-UCB-10init-recal_None"
-                self.problem,          # e.g., "Forrester"
+                problem_folder,          # e.g., "Forrester"
                 f"seed_{self.seed}",    # e.g., "seed_5"
             )
             

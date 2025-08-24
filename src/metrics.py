@@ -49,6 +49,8 @@ class Metrics(object):
             "x_y_opt_dist_pool": [],
             "online_crps": [],
             "crps_test": [],
+            "calibration_optimum_dist_bins": [],
+            "calibration_optimum_local_y_mse": [],
             "online_calibration_nmse": [],
             "online_calibration_mse": [],
             "x_f_opt_dist_pool": [],
@@ -318,6 +320,55 @@ class Metrics(object):
             }
         )
 
+    def calibration_y_local_optimum(
+        self,
+        dataset: Dataset,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        mus: np.ndarray,
+        sigmas: np.ndarray,
+        n_bins: int = 20,
+    ) -> None:
+
+        optimum_loc = np.atleast_2d(dataset.data.y_min_loc_pool)
+        distances = cdist(optimum_loc, X_test, metric="euclidean").flatten()
+        
+        max_dist = np.max(distances) if distances.size > 0 else 1.0
+        counts, bin_edges = np.histogram(distances, bins=n_bins, range=(0, max_dist))
+        
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        calibration_errors = np.full((n_bins,), np.nan)
+
+        for i in range(n_bins):
+            # Define the distance range for the current bin.
+            lower_bound, upper_bound = bin_edges[i], bin_edges[i+1]
+            
+            # Find the indices of test points that fall into this distance bin.
+            # The last bin includes the upper edge to capture all points.
+            in_bin_selector = (distances >= lower_bound) & (distances <= upper_bound) if i == n_bins - 1 \
+                              else (distances >= lower_bound) & (distances < upper_bound)
+
+            # Only proceed if the bin is not empty.
+            if np.any(in_bin_selector):
+                # Select the predictions and true values for the points in this bin.
+                mus_bin, sigmas_bin, y_bin = mus[in_bin_selector], sigmas[in_bin_selector], y_test[in_bin_selector]
+
+                # --- 5. Reuse existing calibration logic to get the error ---
+                # This calculates the Mean Squared Error of the calibration curve for the subset of data.
+                error = self.calibration_y_batched(
+                    mus_bin, sigmas_bin, y_bin, return_mse=True
+                )
+                calibration_errors[i] = error
+
+        # --- 6. Store the results for saving ---
+        self.update_summary({
+            "calibration_optimum_dist_bins": bin_centers.tolist(),
+            "calibration_optimum_local_y_mse": calibration_errors.tolist(),
+        })
+
+
+
+
     def expected_log_predictive_density(
         self, mus: np.ndarray, sigmas: np.ndarray, y: np.ndarray,
     ) -> None:
@@ -445,6 +496,9 @@ class Metrics(object):
             self.calibration_y_batched(mu_test, sigma_test, y_test)
             self.calibration_y_local(
                 dataset.data.X_train, X_test, y_test, mu_test, sigma_test
+            )
+            self.calibration_y_local_optimum(
+            dataset, X_test, y_test, mu_test, sigma_test
             )
             self.calculate_crps_test_set(mu_test, sigma_test, y_test)
             self.sharpness_gaussian(dataset, mu_test, sigma_test)

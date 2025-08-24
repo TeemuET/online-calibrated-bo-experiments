@@ -30,8 +30,8 @@ class RecalibratorUNIBOv2(object):
         mus, sigmas, ys_true = self.make_recal_dataset(dataset, temp_model)
         self.recalibrator_model = self.train_recalibrator_model(mus, sigmas, ys_true, recalibration_method=parameters.recalibration_method)
         self.recalibrated_z_score, self.scaling_factor = self._calculate_scaling_factor(quantile_level=quantile_level, recalibration_method=parameters.recalibration_method)
-        print("Vanilla z-score:", norm.ppf(quantile_level))
-        print("Recalibrated z-score:", self.recalibrated_z_score)
+        #print("Vanilla z-score:", norm.ppf(quantile_level))
+        #print("Recalibrated z-score:", self.recalibrated_z_score)
         
     def make_recal_dataset(self, dataset: Dataset, model):
         X_train, y_train = dataset.data.X_train, dataset.data.y_train

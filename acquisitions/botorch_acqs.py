@@ -425,7 +425,7 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
                 mean, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
                 variance = torch.pow(sigma, 2)
                 delta = (self.beta.expand_as(mean) * variance).sqrt()
-            elif self.recalibrator_type == "UNBOv2" or self.recalibrator_type == "ONLINEv2":
+            elif self.recalibrator_type == "UNIBOv2" or self.recalibrator_type == "ONLINEv2":
                 z = self.recalibrator.recalibrated_z_score
                 delta = z * sigma
                 

@@ -117,20 +117,16 @@ class NumericalExpectedImprovement(AnalyticAcquisitionFunction):
         for i in range(batch_size):
             mu_i, sigma_i = mean[i], sigma[i]
             
-            # 1. Discretize the distribution
             y_space = np.linspace(mu_i - 4 * sigma_i, mu_i + 4 * sigma_i, self.n_steps)
             
-            # 2. Get recalibrated CDF values on the grid
             p_uncal_grid = norm.cdf(y_space, loc=mu_i, scale=sigma_i)
             p_recal_grid = self.recalibrator.recalibrator_model.predict(
                 p_uncal_grid.reshape(-1, 1)
             ).flatten()
 
-            # 3. Approximate the probability mass at each interval
             mass = np.diff(p_recal_grid, prepend=0)
-            mass = np.clip(mass, 0, 1) # Ensure mass is non-negative
+            mass = np.clip(mass, 0, 1) 
             
-            # 4. Calculate EI via weighted sum
             if self.maximize:
                 improvement = np.maximum(0, y_space - y_best)
             else:
@@ -139,8 +135,6 @@ class NumericalExpectedImprovement(AnalyticAcquisitionFunction):
             ei_values[i] = np.sum(improvement * mass)
             
         return torch.tensor(ei_values, device=X.device, dtype=X.dtype)
-
-
 
 class ExpectedImprovement(AnalyticAcquisitionFunction):
     r"""Single-outcome Expected Improvement (analytic).
@@ -204,7 +198,6 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
         self.best_f = self.best_f.to(X)
         posterior = self._get_posterior(X=X)
         mean = posterior.mean
-        # deal with batch evaluation and broadcasting
         view_shape = mean.shape[:-2] if mean.dim() >= X.dim() else X.shape[:-2]
         mean = mean.view(view_shape)
         sigma = (
@@ -220,7 +213,6 @@ class ExpectedImprovement(AnalyticAcquisitionFunction):
         updf = torch.exp(normal.log_prob(u))
         ei = sigma * (updf + u * ucdf)
         return ei
-
 
 class PosteriorMean(AnalyticAcquisitionFunction):
     r"""Single-outcome Posterior Mean.
@@ -381,11 +373,8 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         self.recalibrator = recalibrator
         self.recalibrator_type = recalibrator_type
         
-        
-        #if not torch.is_tensor(beta):
-        #    beta = torch.tensor(beta)
-        #self.register_buffer("beta", beta)
-
+        # Determine the final_beta value based on the quantile_level, i.e., recalibration quantile.
+        # This is done because when we recalibrate the 0.95 quantile, we want to use the corresponding beta value in UCB naturally.
         if quantile_level is not None:
             z_score = norm.ppf(quantile_level)
             final_beta = z_score**2
@@ -419,8 +408,6 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
         sigma = variance.sqrt()
         
         if self.recalibrator is not None:
-            # --- CALIBRATED CASE ---
-            # The recalibrated z-score from the object REPLACES beta.
             if self.recalibrator_type == "UNIBOv1" or self.recalibrator_type == "ONLINEv1":
                 mean, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
                 variance = torch.pow(sigma, 2)
@@ -428,10 +415,6 @@ class UpperConfidenceBound(AnalyticAcquisitionFunction):
             elif self.recalibrator_type == "UNIBOv2" or self.recalibrator_type == "ONLINEv2":
                 z = self.recalibrator.recalibrated_z_score
                 delta = z * sigma
-                
-            #if self.recalibrator is not None:
-            #    _, sigma = self.recalibrator.recalibrate(mean, variance.sqrt())
-            #    variance = torch.pow(sigma, 2)
         else: 
             delta = (self.beta.expand_as(mean) * variance).sqrt()
             

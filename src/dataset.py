@@ -5,10 +5,9 @@ from imports.general import *
 from datasets.benchmarks.benchmark import Benchmark
 
 class Dataset(object):
+    """Handles dataset loading, preprocessing, and splitting."""
     def __init__(self, parameters: Parameters) -> None:
         self.__dict__.update(asdict(parameters))
-#        if parameters.data_name.lower() == "rbfsampler":
-#            self.data = RBFSampler(parameters)
         if parameters.data_name.lower() == "benchmark":
             self.data = Benchmark(parameters)
         else:
@@ -89,8 +88,6 @@ class Dataset(object):
             )
 
     def save(self, save_settings: str = "") -> None:
-        # for k, v in self.summary.items():
-        #     print(k, v, type(v))
         json_dump = json.dumps(self.summary)
         with open(self.savepth + f"dataset{save_settings}.json", "w") as f:
             f.write(json_dump)
@@ -113,16 +110,11 @@ class Dataset(object):
             self.data.y_pool = np.delete(self.data.y_pool, i_choice, axis=0)
             if not self.data.real_world:
                 self.data.f_pool = np.delete(self.data.f_pool, i_choice, axis=0)
-            # x, y, f = self.data.sample_data(n_samples=1)
-            # self.data.X_test = np.append(self.data.X_test, x, axis=0)
-            # self.data.f_test = np.append(self.data.f_test, y, axis=0)
-            # self.data.y_test = np.append(self.data.y_test, f, axis=0)
 
         self.actual_improvement = y_new - self.y_opt if self.bo else None
         self.expected_improvement = acq_val
         self.update_solution()
 
-    #Why do we sample a testset?
     def sample_testset(self, n_samples: int = None) -> Dict[np.ndarray, np.ndarray]:
         n_samples = self.n_test if n_samples is None else n_samples
         if self.data.real_world:

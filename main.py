@@ -1,3 +1,13 @@
+"""
+This is the main script for running experiments.
+It parses command-line arguments to set up the experiment parameters and then runs the experiment.
+E.g. to run a test:
+> python3 main.py "seed=0|n_seeds_per_job=1|recalibrate=True|experiment=GP-UCB-testRun|
+> surrogate=GP|acquisition=UCB|data_name=Benchmark|d=2|problem=SixHumpCamel|n_initial=5|n_evals=30|n_test=5000|n_pool=5000|
+> snr=100.0|quantile_level=0.95|noisify=True|track_surrogate_state=False|bo=True|test=False|scale_kernel=True|n_calibration_bins=20|
+> recalibration_method=isotonic|recalibrator_type=UNIBOv2|eta=0.5"
+"""
+
 from src.parameters import Parameters
 from src.dataset import Dataset
 from src.experiment import Experiment

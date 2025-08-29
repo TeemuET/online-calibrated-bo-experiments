@@ -14,7 +14,10 @@ import warnings
 
 
 class Optimizer(object):
-    """# Optimizer class"""
+    """
+    This class handles the Bayesian optimization iteration, including fitting the surrogate model,
+    constructing the acquisition function, and querying the optimal points.
+    """
 
     def __init__(self, parameters: Parameters) -> None:
         self.__dict__.update(asdict(parameters))
@@ -73,60 +76,27 @@ class Optimizer(object):
         
         self.construct_acquisition_function(dataset, recalibrator)
 
-        #Why do we sample X_test again here???
-        #if X_pool is None:
-        #    X_pool, _, _ = dataset.sample_testset(self.n_pool)
-        #    idxs = list(range(self.n_pool))
-        #    X_pool_entire = X_pool.copy()
-#        elif dataset.data.X_test.shape[0] > 1000:
-#            idxs = np.random.permutation(dataset.data.X_test.shape[0])[:1000]
-#            X_test = dataset.data.X_test[idxs, :]
-#            X_test_entire = dataset.data.X_test.copy()
         X_pool = dataset.data.X_pool.copy()
         X_pool_entire = dataset.data.X_pool.copy()
         idxs = list(range(dataset.data.X_pool.shape[0]))
         
-        if self.parameters.acquisition == "TS":
-            #Using Botorches MaxPosteriorSampling requires dimension to be (1xNxd) instead of (Nx1xd) in other acq. functions.
-            X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 0))
+        X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 1)).to(device)
 
-            x_optim = self.acquisition_function(X_pool_torch)
-            i_choice = np.random.choice(np.nonzero((x_optim.squeeze(0).cpu().detach().numpy()==X_pool_entire).all(axis=1))[0])
+        acquisition_values = (
+            self.acquisition_function(X_pool_torch.float()).cpu().detach().numpy()
+        )
 
-            if return_idx:
-                return(
-                    X_pool_entire[[idxs[i_choice]], :],
-                    "N/A",
-                    idxs[i_choice],
-                )
-            else:
-                return (
-                    X_pool_entire[[idxs[i_choice]], :],
-                    "N/A",
-                )
-        else:
-            X_pool_torch = torch.from_numpy(np.expand_dims(X_pool, 1)).to(device)
-
-            acquisition_values = (
-                self.acquisition_function(X_pool_torch.float()).cpu().detach().numpy()
+        i_choice = np.random.choice(
+            np.flatnonzero(acquisition_values == acquisition_values.max())
+        )
+        if return_idx:
+            return (
+                X_pool_entire[[idxs[i_choice]], :],
+                acquisition_values[i_choice],
+                idxs[i_choice],
             )
-            # find idx
-            if self.parameters.prob_acq:
-                acquisition_values += 1e-8  # numerical adjust.
-                p = acquisition_values / np.sum(acquisition_values)
-                i_choice = np.random.choice(range(len(p)), p=p)
-            else:
-                i_choice = np.random.choice(
-                    np.flatnonzero(acquisition_values == acquisition_values.max())
-                )
-            if return_idx:
-                return (
-                    X_pool_entire[[idxs[i_choice]], :],
-                    acquisition_values[i_choice],
-                    idxs[i_choice],
-                )
-            else:
-                return (
-                    X_pool_entire[[idxs[i_choice]], :],
-                    acquisition_values[i_choice],
-                )
+        else:
+            return (
+                X_pool_entire[[idxs[i_choice]], :],
+                acquisition_values[i_choice],
+            )

@@ -8,7 +8,36 @@ from src.parameters import Parameters
 from copy import deepcopy
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+"""
+Recalibrator classes for recalibrating model predictions based on two scientific articles.
 
+The online calibration method described in the paper:
+Deshpande, S., Marx, C., and Kuleshov, V. "Online Calibrated and Conformal Prediction Improves Bayesian Optimization",
+Proc. 27th Int. Conf. on Artificial Intelligence and Statistics (AISTATS), PMLR 238, Valencia, Spain.
+Available at: https://arxiv.org/abs/2112.04620
+
+Classes:
+
+> RecalibratorONLINEv1
+> RecalibratorONLINEv2
+
+The Kuleshov et al. (2018) method described in an older unpublished manuscript:
+Deshpande, S., Kuleshov, V. "Calibration Improves Bayesian Optimization, 2021"
+Available at: https://arxiv.org/abs/2112.04620v1
+
+Classes: 
+
+> RecalibratorUNIBOv1
+> RecalibratorUNIBOv2
+
+Versions:
+
+v1: Moment estimation approach. The recalibrator is applied to the entire predictive CDF after which the CDF is approximated as a Gaussian via moment estimation.
+v2: Quantile estimation approach. The recalibrator is applied to a specific quantile of interest, and the posterior standard deviation is scaled accordingly.
+
+(v3: There actually might be a quantile estimation approach where we compromise between the quantiles to achieve lowers calibration err. across a set of quantiles. Not implemented yet. Available in the uncertainty-toolbox package.
+This is not too relevan if one uses UCB as the acquisition function, as it only uses a single quantile anyway.)
+"""
 class RecalibratorUNIBOv2(object):
     
     def __init__(
@@ -30,8 +59,6 @@ class RecalibratorUNIBOv2(object):
         mus, sigmas, ys_true = self.make_recal_dataset(dataset, temp_model)
         self.recalibrator_model = self.train_recalibrator_model(mus, sigmas, ys_true, recalibration_method=parameters.recalibration_method)
         self.recalibrated_z_score, self.scaling_factor = self._calculate_scaling_factor(quantile_level=quantile_level, recalibration_method=parameters.recalibration_method)
-        #print("Vanilla z-score:", norm.ppf(quantile_level))
-        #print("Recalibrated z-score:", self.recalibrated_z_score)
         
     def make_recal_dataset(self, dataset: Dataset, model):
         X_train, y_train = dataset.data.X_train, dataset.data.y_train
@@ -199,10 +226,6 @@ class RecalibratorUNIBOv1(object):
             return np.array(mu_new)[:, np.newaxis], np.array(std_new)[:, np.newaxis]
         
 class RecalibratorONLINEv1(object):
-    """
-    Recalibrates the entire quantile function using the Online Subgradient
-    Descent method from Deshpande et al., 2024.
-    """
     def __init__(self, dataset: Dataset, model, parameters: Parameters, mode: str = "cv") -> None:
         if mode == "kfold":
             self.cv_module = KFold(n_splits=parameters.n_initial)
@@ -216,8 +239,6 @@ class RecalibratorONLINEv1(object):
             mus, sigmas, ys_true, recalibration_method=parameters.recalibration_method
         )
         test = np.linspace(0.01, 0.99, 50)
-        #plt.plot(test, self.recalibrator_model.predict(test.reshape(-1, 1)))
-        #plt.show()
 
     def make_recal_dataset(self, dataset: Dataset, model):
         if self.mode == "cv" or self.mode == "kfold":
@@ -243,7 +264,6 @@ class RecalibratorONLINEv1(object):
         
         p_vals = np.linspace(0.01, 0.99, 50)
         q_vals = np.array([self._online_quantile_recalibration(mu_test, sig_test, y_val, p, self.eta) for p in p_vals])
-        #plt.scatter(p_vals, q_vals, label="Recalibrated Quantiles")
         if recalibration_method == "isotonic":
             model = IsotonicRegression(
                 y_min=0, y_max=1, increasing=True, out_of_bounds="clip"
@@ -262,7 +282,6 @@ class RecalibratorONLINEv1(object):
         return model
     
     def _online_quantile_recalibration(self, mus, sigmas, ys_true, p, eta):
-        """Runs the OSD update rule to find the recalibrated quantile."""
         q_t = p
         for i in range(len(ys_true)):
             mu_i, sigma_i, y_i = mus[i], sigmas[i], ys_true[i]
@@ -321,11 +340,7 @@ class RecalibratorONLINEv1(object):
             return np.array(mu_new)[:, np.newaxis], np.array(std_new)[:, np.newaxis]
 
 class RecalibratorONLINEv2(object):
-    """
-    Recalibrates a single quantile using the Online Subgradient Descent method
-    from Deshpande et al., 2024[cite: 98, 133]. This recalibrated quantile is then
-    used to derive a scaling factor for the predictive standard deviation.
-    """
+
     def __init__(self, dataset: Dataset, model, parameters: Parameters, mode: str = "cv") -> None:
         if mode != "cv":
             raise NotImplementedError("Only 'cv' mode with LeaveOneOut is supported.")
@@ -341,17 +356,14 @@ class RecalibratorONLINEv2(object):
         )
         self.recalibrated_z_score = norm.ppf(final_q)
         vanilla_z_score = norm.ppf(target_quantile)
-        #print("Vanilla z-score:", vanilla_z_score)
-        #print("Recalibrated z-score:", self.recalibrated_z_score)
         if np.isclose(vanilla_z_score, 0):
-            self.scaling_factor = 1.0 # Avoid division by zero
+            self.scaling_factor = 1.0 
         else:
             self.scaling_factor = self.recalibrated_z_score / vanilla_z_score
-        # Prevent drifting to negative values/0 after the calibration set becomes increasingly biased.
         self.scaling_factor = np.maximum(self.scaling_factor, 1e-6)
     def _online_quantile_recalibration(self, mus, sigmas, ys_true, p, eta):
-        """Runs the OSD update rule to find the recalibrated quantile[cite: 133]."""
-        q_t = p # Start with the target quantile
+
+        q_t = p
         
         for i in range(len(ys_true)):
             mu_i, sigma_i, y_i = mus[i], sigmas[i], ys_true[i]            
@@ -361,7 +373,6 @@ class RecalibratorONLINEv2(object):
             q_t = q_t - eta * gradient
             q_t = np.clip(q_t, 1e-3, 1.0 - 1e-3)
 
-        #print("Recalibrated quantile:", q_t)
         return q_t
 
     def make_recal_dataset(self, dataset: Dataset, model):
@@ -378,5 +389,4 @@ class RecalibratorONLINEv2(object):
         return mus, sigmas, ys_true
 
     def recalibrate(self, mu_preds, sig_preds):
-        """Applies the single learned scaling factor to the standard deviation."""
         return mu_preds, sig_preds * self.scaling_factor

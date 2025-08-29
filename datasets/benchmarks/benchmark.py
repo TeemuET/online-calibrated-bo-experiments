@@ -5,8 +5,6 @@ import inspect
 from imports.general import *
 from imports.ml import *
 
-#Updated on 19/01 by Mikkel to have 1 additional dataset - we need to have test, pool and valid set (init set is sampled from pool set).
-
 class Benchmark(object):
     """ Benchmark dataset for bayesian optimization
     ##### http://infinity77.net/global_optimization/test_functions.html#multidimensional-test-functions-index

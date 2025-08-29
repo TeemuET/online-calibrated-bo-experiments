@@ -68,7 +68,7 @@ conda activate ocbo
 To run a single experiment, execute the `main.py` script from the root directory. All experiment parameters are passed as a single string, with each parameter separated by a `|`.
 
 ```sh
-python3 -c "from main import *; run()" "seed=0|surrogate=GP|acquisition=EI|data_name=benchmark|problem_idx=11"
+python3 main.py "seed=0|n_seeds_per_job=1|recalibrate=True|experiment=GP-UCB-test|surrogate=GP|acquisition=UCB|data_name=Benchmark|d=2|problem=SixHumpCamel|n_initial=5|n_evals=30|n_test=5000|n_pool=5000|snr=100.0|quantile_level=0.95|noisify=True|test=True|scale_kernel=True|n_calibration_bins=20|recalibrator_type=ONLINEv2"
 ```
 
 For examples of how to run sweeps over multiple seeds and configurations, see the `run_synthetic.sh` and `run_synthetic_specific.sh` for slurms scripts.

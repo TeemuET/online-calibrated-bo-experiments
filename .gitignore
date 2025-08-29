@@ -17,6 +17,7 @@ tables/
 results_pertubaion/
 plots/
 article_tables_figures_generators/
+figs/presentation
 
 ### VisualStudioCode Patch ###
 # Ignore all local history of files

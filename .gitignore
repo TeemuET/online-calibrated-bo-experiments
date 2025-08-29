@@ -5,7 +5,7 @@ cluster
 #**/TODO.txt
 **/*.pdf
 # ...EXCEPT for the final presentation.
-!Docs/FinalPresentation.pdf
+!Docs/**/*.pdf
 **/*.zip
 **/*.db
 **/.DS_Store
